@@ -52,6 +52,9 @@ local Tween
 local Info
 local Cycle
 
+local WalkSpeedConnection
+local JumpPowerConnection
+
 getgenv().is_firing = false
 
 local SilentAimModule = {}
@@ -265,6 +268,52 @@ function SilentAimModule:GetMagnitudeFromMouse(targetPart)
     return math.huge
 end
 
+function SilentAimModule:ApplyWalkSpeed()
+    if not Faith.Movement.WalkSpeed.Enabled then
+        printAction("WalkSpeed adjustments disabled")
+        return
+    end
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("Humanoid") then
+        printAction("No character or Humanoid found for WalkSpeed adjustment")
+        return
+    end
+
+    local Humanoid = character.Humanoid
+    local currentWalkSpeed = Faith.Movement.WalkSpeed.Toggled and Faith.Movement.WalkSpeed.Fast or Faith.Movement.WalkSpeed.Slow
+
+    if WalkSpeedConnection then WalkSpeedConnection:Disconnect() end
+    Humanoid.WalkSpeed = currentWalkSpeed
+    WalkSpeedConnection = Humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+        Humanoid.WalkSpeed = currentWalkSpeed
+    end)
+
+    printAction("Applied WalkSpeed: " .. currentWalkSpeed)
+end
+
+function SilentAimModule:ApplyJumpPower()
+    if not Faith.Movement.JumpPower.Enabled then
+        printAction("JumpPower adjustments disabled")
+        return
+    end
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("Humanoid") then
+        printAction("No character or Humanoid found for JumpPower adjustment")
+        return
+    end
+
+    local Humanoid = character.Humanoid
+    local currentJumpPower = Faith.Movement.JumpPower.Toggled and Faith.Movement.JumpPower.Fast or Faith.Movement.JumpPower.Slow
+
+    if JumpPowerConnection then JumpPowerConnection:Disconnect() end
+    Humanoid.JumpPower = currentJumpPower
+    JumpPowerConnection = Humanoid:GetPropertyChangedSignal("JumpPower"):Connect(function()
+        Humanoid.JumpPower = currentJumpPower
+    end)
+
+    printAction("Applied JumpPower: " .. currentJumpPower)
+end
+
 local utility = {}
 function utility.get_gun()
     for _, tool in next, game.Players.LocalPlayer.Character:GetChildren() do
@@ -311,6 +360,14 @@ game:GetService("UserInputService").InputBegan:Connect(function(Key, E)
             if Cycle then Cycle:Disconnect() end
             Target = { Player = nil, TargetPart = nil }
         end
+    elseif Faith.Movement.WalkSpeed.Enabled and Key.KeyCode == Enum.KeyCode[Faith.Movement.WalkSpeed.Bind:upper()] then
+        Faith.Movement.WalkSpeed.Toggled = not Faith.Movement.WalkSpeed.Toggled
+        SilentAimModule:ApplyWalkSpeed()
+        printAction("WalkSpeed toggled to " .. (Faith.Movement.WalkSpeed.Toggled and "Fast" or "Slow") .. " mode")
+    elseif Faith.Movement.JumpPower.Enabled and Key.KeyCode == Enum.KeyCode[Faith.Movement.JumpPower.Bind:upper()] then
+        Faith.Movement.JumpPower.Toggled = not Faith.Movement.JumpPower.Toggled
+        SilentAimModule:ApplyJumpPower()
+        printAction("JumpPower toggled to " .. (Faith.Movement.JumpPower.Toggled and "Fast" or "Slow") .. " mode")
     end
 end)
 
@@ -349,5 +406,20 @@ RunService.RenderStepped:Connect(function()
     end
     printAction("FOV updated: Visible=" .. tostring(FOVCircle.Visible))
 end)
+
+-- Handle movement on character spawn
+LocalPlayer.CharacterAdded:Connect(function(character)
+    if Faith.Movement.WalkSpeed.Enabled or Faith.Movement.JumpPower.Enabled then
+        task.wait(0.1) -- Wait for character to fully load
+        if Faith.Movement.WalkSpeed.Enabled then SilentAimModule:ApplyWalkSpeed() end
+        if Faith.Movement.JumpPower.Enabled then SilentAimModule:ApplyJumpPower() end
+    end
+end)
+
+-- Apply initial settings if character already exists
+if LocalPlayer.Character then
+    if Faith.Movement.WalkSpeed.Enabled then SilentAimModule:ApplyWalkSpeed() end
+    if Faith.Movement.JumpPower.Enabled then SilentAimModule:ApplyJumpPower() end
+end
 
 return SilentAimModule
